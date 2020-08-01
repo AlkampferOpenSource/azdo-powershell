@@ -37,14 +37,31 @@ inherited process
 function Add-AzdoProcessField {
     param (
         [string] $ProcessName,
-        [string] $WorkItemType
+        [string] $WorkItemTypeName,
+        [string] $FieldName
     ) 
 
     $processId = Get-AzdoProcessId -ProcessName $ProcessName
-
-    $uri = $azdoUtilsUri + "/_apis/work/processes/$processId/workItemTypes/bug/fields?api-version=6.0-preview.2"
+    $workItemTypeId = Get-AzdoWorkItemTypeId -ProcessName $ProcessName -WorkItemTypeName $WorkItemTypeName
+    $uri = $azdoUtilsUri + "/_apis/work/processes/$processId/workItemTypes/$workItemTypeId/fields?api-version=6.0-preview.2"
     $fields = Invoke-RestMethod -Uri $uri -Method get -Headers $azdoUtilsAuthHeader 
-    
+    $field = $processes.value | Where-Object { $_.referenceName -eq $FieldName } 
+
+    if ($field -eq $null) {
+       Write-Host "Field name $FieldName does not exists will be created" 
+       $bodyObject = @{ 
+           "referenceName" = $FieldName; 
+           "defaultValue" = "";
+           "allowGroups" = $false;
+        }
+
+       $body     = $bodyObject | ConvertTo-Json -Compress
+       $createUri = $azdoUtilsUri + "/_apis/work/processes/$processId/workItemTypes/$workItemTypeId/fields?api-version=6.0-preview.2"
+       
+       $postAzdoUtilsAuthHeader = $azdoUtilsAuthHeader.Clone()
+       $postAzdoUtilsAuthHeader["Content-Type"] = "application/json"
+       $result =  Invoke-RestMethod -Uri $uri -Body $body -Method POST -Headers $postAzdoUtilsAuthHeader 
+    }
     Write-Host $fields.value
 }
 
@@ -88,14 +105,15 @@ inherited process
 function Get-AzdoWorkItemTypeId {
     param (
         [string] $ProcessName,
-        [string] $WorkItemName
+        [string] $WorkItemTypeName
     ) 
 
     $processId = Get-AzdoProcessId -ProcessName $ProcessName
 
     $uri = $azdoUtilsUri + "/_apis/work/processes/{$processId}/workitemtypes?api-version=6.0-preview.2"
     $workItemTypes = Invoke-RestMethod -Uri $uri -Method get -Headers $azdoUtilsAuthHeader 
-    $workItem = $workItemTypes.value | Where-Object { $_.name -eq $ProcessName } 
+    $workItem = $workItemTypes.value | Where-Object { $_.name -eq $WorkItemTypeName } 
+    return $workItem.referenceName
 }
 
 Export-ModuleMember -Function * -Cmdlet *
